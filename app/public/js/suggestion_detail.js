@@ -1,62 +1,102 @@
 document.addEventListener("DOMContentLoaded", function(event) {
-    bindField('accept_name');
-    bindField('accept_phone_number');
-    bindField('accept_address');
-    bindField('accept_url');
-    bindField('accept_all');
+	var fields = ['name', 'phone_number', 'address', 'external_web_url'];
+
+	function isSuggestionDoingNothing(field) {
+		var original_val = $('#original_' + field).val();
+		var suggested_val = $('#suggestion_' + field).val();
+		return original_val === suggested_val;
+	}
+
+	function hide(field) {
+		field = 'accept_' + field;
+		var $parent = $('#' + field).closest('div');
+		$parent.addClass('does-nothing');
+		var $form_rows = $parent.closest('form .row');
+
+		// If any row contains more than 
+		if ($form_rows.find('.does-nothing').length > 1) {
+			$form_rows.addClass('does-nothing');
+		}
+	}
+
+	function hideSuggestionsThatDoNothing() {
+		fields.filter(isSuggestionDoingNothing).forEach(hide);
+	}
+
+	function bindField(tag) {
+		var $tag = $("#accept_"+ tag);
+		var $div = $tag.closest('div');
+		$tag.click(function() {
+			sendRequest(getData(tag), tag);
+		});
+		$div.find('.resolve').click(function() {
+			var $element = $div.find('input[type="button"].btn-primary');
+			var field_name = $element.attr('id');
+			markResolved(tag);
+		});
+	}
+
+	function sendRequest(data, tag) {
+		var method = 'POST';
+		if (tag === 'resolve_all') {
+			method = 'DELETE';
+		}
+		if (tag === 'accept_all') {
+			url = '/api/suggestion/merge';
+		}
+		$.ajax({
+			url: url,
+			method: method,
+			data: data,
+			success: function() {
+				if (tag === 'accept_all' || tag === 'resolve_all') {
+					// navigate to suggestion list.
+					location.href = '/suggestion-list';
+				}
+				else {
+					location.reload();
+				}
+			},
+			error:function(result) {
+				$("#" + tag).parent().prepend("<div class='alert alert-danger'>"
+												+ "Something went wrong."
+												+ "</div>");
+			}
+		});
+	}
+
+	function markResolved(fieldname) {
+		$('#suggestion_' + fieldname).val($('#original_' + fieldname).val());
+		hide(fieldname);
+	}
+
+	function getData(fieldname) {
+		var data = {};
+		data._token = $('[name="_token"]').val();
+		data.location_id = $("#location_id").val();
+		var fields = ['name', 'external_web_url', 'address', 'phone_number'];
+		fields.forEach(function(field) {
+			data[field] = $('#original_' + field).val();
+		});
+
+		function acceptSuggestion(field) {
+			data[field] = $('#suggestion_' + field).val();
+		}
+
+		function acceptAll() {
+			fields.forEach(acceptSuggestion);
+		}
+
+		if ( fieldname === 'accept_all' ) {
+			acceptAll();
+		}
+		else {
+			acceptSuggestion(fieldname);
+		}
+
+		return data;
+	}
+
+	fields.forEach(bindField);
+	hideSuggestionsThatDoNothing();
 });
-
-function getData(fieldname){
-    var data = {};
-    data['_token'] = $('[name="_token"]').val();
-    data['location_id'] = $("#location_id").val();
-    
-    data['name'] = $("#original_name").val();
-    data['address'] = $("#original_address").val();
-    data['external_web_url'] = $("#original_url").val();
-    data['phone_number'] = $("#original_phone_number").val();
-    switch(fieldname){
-        case "accept_name":
-            data['name'] = $("#suggestion_name").val();
-            break;
-        case "accept_phone_number":
-            data['phone_number'] = $("#suggestion_phone_number").val();
-            break;
-        case "accept_address":
-            data['address'] = $("#suggestion_address").val();
-            break;
-        case "accept_url":
-            data['external_web_url'] = $("#suggestion_url").val();
-            break;
-        case "accept_all":
-            data['name'] = $("#suggestion_name").val();
-            data['external_web_url'] = $("#suggestion_url").val();
-            data['address'] = $("#suggestion_address").val();
-            data['phone_number'] = $("#suggestion_phone_number").val();
-            break;
-    }
-
-    return data;
-}
-
-function bindField(tag){
-    $("#"+ tag).click(function(){
-        sendRequest(getData(tag), tag);
-    })
-}
-
-function sendRequest(data,tag){
-    $.ajax({
-        url:"/location/management/edit",
-        method:'post',
-        data:data,
-        success:function(){
-            location.reload();
-        },
-        error:function(result){
-            $("#" + tag).parent().prepend("<div class='alert alert-danger'>"
-                                            + "Something wrong happens."
-                                            + "</div>");
-        }
-    })
-}

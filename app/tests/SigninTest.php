@@ -65,6 +65,34 @@ class SigninApiTest extends TestCase
         $this->assertTrue(strpos($content, 'Suggestions') !== false);
     }
 
+    private function addSuggestion()
+    {
+        $data = [
+            'location-id'   => '00000000-0000-0000-0000-000000000001',
+            'location-name' => 'Test Location Name',
+            'phone-number'  => '123-123-1234',
+            'url'           => '',
+            'address'       => '123 Test Street'
+        ];
+        $response = $this->post('/api/add-suggestion', $data);
+        $this->assertEquals(200, $response->getStatusCode());
+        $data = json_decode($response->getContent());
+        return $data;
+    }
+
+    private function deleteSuggestion($suggestion_id)
+    {
+        $response = $this->delete('/api/suggestion/' . $suggestion_id);
+        $this->assertEquals(200, $response->getStatusCode());
+    }
+
+    private function addAndDeleteSuggestion()
+    {
+        $suggestion_id = $this->addSuggestion()->id;
+        $this->assertTrue(is_numeric($suggestion_id));
+        $this->deleteSuggestion($suggestion_id);
+    }
+
     private function checkNameChangeFeature()
     {
         $response = $this->get('/profile/names');
@@ -211,6 +239,7 @@ class SigninApiTest extends TestCase
         $this->checkHomeAddressFeature();
         $this->checkInternalDashboard();
         $this->checkScreenReader();
+        $this->addAndDeleteSuggestion();
         $this->checkSuggestions();
     }
 

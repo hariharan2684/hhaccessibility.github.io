@@ -12,6 +12,7 @@ use App\Location;
 use App\BaseUser;
 use App\Suggestion;
 use App\User;
+use App\Role;
 use DB;
 
 class SuggestionController extends Controller
@@ -33,7 +34,6 @@ class SuggestionController extends Controller
             'phone-number'          => 'max:50',
             'url'                   => 'max:255|url',
             'address'               => 'max:255'
-
         );
         $validator = Validator::make(Input::all(), $validation_rules);
         if ($validator->fails()) {
@@ -76,7 +76,8 @@ class SuggestionController extends Controller
         $suggestion->save();
 
         return Response::json([
-            'success' => 1
+            'success' => 1,
+            'id' => $suggestion->id
         ], 200);
     }
 
@@ -97,7 +98,7 @@ class SuggestionController extends Controller
         }
         $columns = ['suggestion.id', 'suggestion.user_id', 'suggestion.when_generated',
             DB::raw('concat(user.first_name, \' \', user.last_name) as user_name')];
-        $suggestions = Suggestion::join('user', 'user.id', '=', 'suggestion.user_id');
+        $suggestions = Suggestion::join('user', 'user.id', '=', 'suggestion.user_id')->where('deleted_at', '=', null);
         if ($location_id === null) {
             $location_name = '';
             $suggestions = $suggestions->join('location', 'location.id', '=', 'suggestion.location_id');
@@ -137,5 +138,50 @@ class SuggestionController extends Controller
             'original_location' => $location
         ];
         return view('pages.location_management.suggestion_detail', $view_data);
+    }
+
+    public function acceptSuggestion(string $suggestion_id)
+    {
+    }
+
+    public function markSuggestionAsResolved(string $suggestion_id)
+    {
+        if (!BaseUser::isSignedIn()) {
+            return  Response::json([
+                'success' => false,
+                'message' => "Not signed in."
+            ], 403);
+        }
+        $user = BaseUser::getDbUser();
+        $suggestion = Suggestion::find($suggestion_id);
+        if (!$suggestion) {
+            return  Response::json([
+                'success' => false,
+                'message' => "Suggestion not found matching specified suggestion id."
+            ], 404);
+        }
+        if ($suggestion->deleted_at) {
+            return  Response::json([
+                'success' => false,
+                'message' => "Suggestion already marked as resolved."
+            ], 422);
+        }
+        if (!$user->hasRole(Role::INTERNAL)) {
+            $location = Location::
+                where('creator_user_id', '=', $user->id)->
+                where('id', '=', $suggestion->location_id)->
+                get(['id']);
+            if (!$location) {
+                return  Response::json([
+                    'success' => false,
+                    'message' =>
+                      'Not allowed to mark this suggestion as resolved because you did not create this location.'
+                ], 403);
+            }
+        }
+        $suggestion->delete();
+        return  Response::json([
+            'success' => true
+        ]);
     }
 }
